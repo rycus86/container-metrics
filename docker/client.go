@@ -4,11 +4,13 @@ import (
 	"context"
 	"encoding/json"
 
-	dockerClient "github.com/docker/docker/client"
 	dockerTypes "github.com/docker/docker/api/types"
+	dockerClient "github.com/docker/docker/client"
+	"github.com/rycus86/container-metrics/container"
+	"github.com/rycus86/container-metrics/stats"
 )
 
-type Client struct{
+type Client struct {
 	client *dockerClient.Client
 }
 
@@ -23,42 +25,43 @@ func NewClient() (*Client, error) {
 	}, nil
 }
 
-func (c *Client) GetContainerIDs() ([]string, error) {
-	// TODO context.Background()
-	containers, err := c.client.ContainerList(context.Background(), dockerTypes.ContainerListOptions{})
+func (c *Client) GetContainers() ([]container.Container, error) {
+	dockerContainers, err := c.client.ContainerList(context.Background(), dockerTypes.ContainerListOptions{})
 	if err != nil {
 		return nil, err
 	}
 
-	ids := make([]string, len(containers))
+	containers := make([]container.Container, len(dockerContainers))
 
-	for idx, container := range containers {
-		ids[idx] = container.ID
+	for idx, item := range dockerContainers {
+		containers[idx] = container.Container{
+			Id:     item.ID,
+			Name:   item.Names[0],
+			Labels: item.Labels,
+		}
 	}
 
-	return ids, nil
+	return containers, nil
 }
 
-func (c *Client) GetStats(containerID string) (*dockerTypes.StatsJSON, error) {
-	// TODO context.Background()
-	response, err := c.client.ContainerStats(context.Background(), containerID, false)
+func (c *Client) GetStats(container *container.Container) (*stats.Stats, error) {
+	response, err := c.client.ContainerStats(context.Background(), container.Id, false)
 	if err != nil {
 		return nil, err
 	}
 	defer response.Body.Close()
 
-	var stats dockerTypes.StatsJSON  // TODO custom type instead
-	err = json.NewDecoder(response.Body).Decode(&stats)
+	var dockerStats dockerTypes.StatsJSON
+	err = json.NewDecoder(response.Body).Decode(&dockerStats)
 	if err != nil {
 		return nil, err
 	}
 
-	return &stats, nil
+	return convertStats(&dockerStats), nil
 }
 
-func (c *Client) StreamStats(containerID string, out chan<- dockerTypes.StatsJSON) {
-	// TODO context.Background()
-	response, err := c.client.ContainerStats(context.Background(), containerID, true)
+func (c *Client) StreamStats(container *container.Container, out chan<- *stats.Stats) {
+	response, err := c.client.ContainerStats(context.Background(), container.Id, true)
 	if err != nil {
 		close(out)
 		return
@@ -66,13 +69,13 @@ func (c *Client) StreamStats(containerID string, out chan<- dockerTypes.StatsJSO
 	defer response.Body.Close()
 
 	for {
-		var stats dockerTypes.StatsJSON  // TODO custom type instead
-		err = json.NewDecoder(response.Body).Decode(&stats)
+		var dockerStats dockerTypes.StatsJSON
+		err = json.NewDecoder(response.Body).Decode(&dockerStats)
 		if err != nil {
 			break
 		}
 
-		out <- stats
+		out <- convertStats(&dockerStats)
 	}
 
 	close(out)

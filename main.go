@@ -7,7 +7,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/rycus86/docker-metrics/docker"
+	"github.com/rycus86/container-metrics/docker"
+	"github.com/rycus86/container-metrics/metrics"
 )
 
 func main() {
@@ -16,20 +17,22 @@ func main() {
 		panic(err)
 	}
 
-	containers, err := cli.GetContainerIDs()
+	containers, err := cli.GetContainers()
 	if err != nil {
 		panic(err)
 	}
 	fmt.Println("container IDs:", containers)
 
 	for _, container := range containers {
-		stats, err := cli.GetStats(container)
+		stats, err := cli.GetStats(&container)
 		if err != nil {
 			fmt.Println("Failed to get stats for", container, err)
 		} else {
 			fmt.Println("Stats for", container, stats)
 		}
 	}
+
+	go metrics.Serve()
 
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM)
@@ -42,8 +45,10 @@ func main() {
 		case <-ticker.C:
 			for _, c := range containers {
 				go func() {
-					stats, _ := cli.GetStats(c)
+					stats, _ := cli.GetStats(&c)
 					fmt.Println("Stats:", stats)
+
+					metrics.Record(&c, stats)
 				}()
 			}
 

@@ -1,55 +1,63 @@
 package docker
 
-type Container struct{
-	Id string
-	Names []string
-	Image string
-}
+import (
+	"github.com/docker/docker/api/types"
+	"github.com/rycus86/container-metrics/stats"
+)
 
-type ioStat struct{
-	Operation string `json:"op"`
-	Value int64
-}
+func convertStats(d *types.StatsJSON) *stats.Stats {
+	s := stats.Stats{
+		Id:   d.ID,
+		Name: d.Name,
 
-type Stats struct {
-	Id string
-	Name string
-	Read string
+		CpuStats: stats.CpuStats{
+			Total:  d.CPUStats.CPUUsage.TotalUsage,
+			System: d.CPUStats.CPUUsage.UsageInKernelmode,
+			User:   d.CPUStats.CPUUsage.UsageInUsermode,
+		},
 
-	CpuStats struct{
-		CpuUsage struct{
-			TotalUsage int64 `json:"total_usage"`
-			UserMode int64 `json:"usage_in_usermode"`
-			KernelMode int64 `json:"usage_in_kernelmode"`
-		} `json:"cpu_usage"`
+		MemoryStats: stats.MemoryStats{
+			Total: d.MemoryStats.Limit,
+			Free:  d.MemoryStats.Limit - d.MemoryStats.Usage,
+		},
 
-		SystemCpuUsage int64 `json:"system_cpu_usage"`
-	} `json:"cpu_stats"`
+		IOStats: stats.IOStats{
+			Read:    0,
+			Written: 0,
+		},
 
-	MemoryStats struct{
-		Usage int64
-		MaxUsage int64 `json:"max_usage"`
-		Limit int64
-	} `json:"memory_stats"`
+		NetworkStats: stats.NetworkStats{
+			RxBytes:   0,
+			RxPackets: 0,
+			RxDropped: 0,
+			RxErrors:  0,
 
-	IOStats struct{
-		ServiceBytes []ioStat `json:"io_service_bytes_recursive"`
-		Serviced []ioStat `json:"io_serviced_recursive"`
-	} `json:"blkio_stats"`
-
-	Networks map[string]struct{
-		RxBytes int64 `json:"rx_bytes"`
-		RxPackets int64 `json:"rx_packets"`
-		RxDropped int64 `json:"rx_dropped"`
-		RxErrors int64 `json:"rx_errors"`
-
-		TxBytes int64 `json:"tx_bytes"`
-		TxPackets int64 `json:"tx_packets"`
-		TxDropped int64 `json:"tx_dropped"`
-		TxErrors int64 `json:"tx_errors"`
+			TxBytes:   0,
+			TxPackets: 0,
+			TxDropped: 0,
+			TxErrors:  0,
+		},
 	}
 
-	PidStats struct{
-		Current int64
-	} `json:"pids_stats"`
+	for _, ioEntry := range d.BlkioStats.IoServiceBytesRecursive {
+		if ioEntry.Op == "Read" {
+			s.IOStats.Read += ioEntry.Value
+		} else if ioEntry.Op == "Write" {
+			s.IOStats.Written += ioEntry.Value
+		}
+	}
+
+	for _, netEntry := range d.Networks {
+		s.NetworkStats.RxBytes += netEntry.RxBytes
+		s.NetworkStats.RxPackets += netEntry.RxPackets
+		s.NetworkStats.RxDropped += netEntry.RxDropped
+		s.NetworkStats.RxErrors += netEntry.RxErrors
+
+		s.NetworkStats.TxBytes += netEntry.TxBytes
+		s.NetworkStats.TxPackets += netEntry.TxPackets
+		s.NetworkStats.TxDropped += netEntry.TxDropped
+		s.NetworkStats.TxErrors += netEntry.TxErrors
+	}
+
+	return &s
 }
