@@ -7,9 +7,33 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/rycus86/container-metrics/container"
 	"github.com/rycus86/container-metrics/docker"
 	"github.com/rycus86/container-metrics/metrics"
+	"github.com/rycus86/container-metrics/stats"
 )
+
+func recordMetrics(cli *docker.Client, containers []container.Container) {
+	metrics.RecordAll(func (c *container.Container) *stats.Stats {
+		stats, _ := cli.GetStats(c) // TODO error
+		return stats
+	})
+	//for _, c := range containers {
+	//	current := c
+	//	go recordMetricsForOne(cli, &current)
+	//}
+}
+
+func recordMetricsForOne(cli *docker.Client, c *container.Container) {
+	stats, err := cli.GetStats(c)
+	if err != nil {
+		// TODO error handling?
+		fmt.Println("Failed to get stats of", c.Name, "-", err)
+		return
+	}
+
+	metrics.Record(c, stats)
+}
 
 func main() {
 	cli, err := docker.NewClient()
@@ -23,34 +47,22 @@ func main() {
 	}
 	fmt.Println("container IDs:", containers)
 
-	for _, container := range containers {
-		stats, err := cli.GetStats(&container)
-		if err != nil {
-			fmt.Println("Failed to get stats for", container, err)
-		} else {
-			fmt.Println("Stats for", container, stats)
-		}
-	}
+	metrics.PrepareMetrics(containers)
+
+	go recordMetrics(cli, containers)
 
 	go metrics.Serve()
 
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM)
 
-	ticker := time.NewTicker(5 * time.Second)
+	ticker := time.NewTicker(3 * time.Second)
 
 	for {
 		select {
 
 		case <-ticker.C:
-			for _, c := range containers {
-				go func() {
-					stats, _ := cli.GetStats(&c)
-					fmt.Println("Stats:", stats)
-
-					metrics.Record(&c, stats)
-				}()
-			}
+			go recordMetrics(cli, containers)
 
 		case s := <-signals:
 			if s != syscall.SIGHUP {
