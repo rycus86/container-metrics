@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 
+	"fmt"
 	dockerTypes "github.com/docker/docker/api/types"
 	dockerClient "github.com/docker/docker/client"
 	"github.com/rycus86/container-metrics/container"
@@ -60,23 +61,28 @@ func (c *Client) GetStats(container *container.Container) (*stats.Stats, error) 
 	return convertStats(&dockerStats), nil
 }
 
-func (c *Client) StreamStats(container *container.Container, out chan<- *stats.Stats) {
-	response, err := c.client.ContainerStats(context.Background(), container.Id, true)
-	if err != nil {
-		close(out)
-		return
-	}
-	defer response.Body.Close()
+func (c *Client) ListenForEvents(channel chan<- []container.Container) {
+	messages, errors := c.client.Events(context.Background(), dockerTypes.EventsOptions{})
 
 	for {
-		var dockerStats dockerTypes.StatsJSON
-		err = json.NewDecoder(response.Body).Decode(&dockerStats)
-		if err != nil {
-			break
+		select {
+		case message := <-messages:
+			if message.Status == "start" || message.Status == "destroy" {
+				go func() {
+					containers, err := c.GetContainers()
+
+					if err != nil {
+						fmt.Println("Failed to reload containers", err)
+					} else {
+						fmt.Println("Sending containers:", containers)
+						channel <- containers
+					}
+				}()
+			}
+
+		case <-errors:
+			fmt.Println("Stop listening for events")
+			return
 		}
-
-		out <- convertStats(&dockerStats)
 	}
-
-	close(out)
 }

@@ -13,33 +13,23 @@ import (
 	"github.com/rycus86/container-metrics/stats"
 )
 
-func recordMetrics(cli *docker.Client, containers []container.Container) {
-	metrics.RecordAll(func (c *container.Container) *stats.Stats {
-		stats, _ := cli.GetStats(c) // TODO error
-		return stats
-	})
-	//for _, c := range containers {
-	//	current := c
-	//	go recordMetricsForOne(cli, &current)
-	//}
+var cli *docker.Client
+
+func recordMetrics() {
+	metrics.RecordAll(statsFunc)
 }
 
-func recordMetricsForOne(cli *docker.Client, c *container.Container) {
-	stats, err := cli.GetStats(c)
-	if err != nil {
-		// TODO error handling?
-		fmt.Println("Failed to get stats of", c.Name, "-", err)
-		return
-	}
-
-	metrics.Record(c, stats)
+func statsFunc(c *container.Container) (*stats.Stats, error) {
+	return cli.GetStats(c)
 }
 
 func main() {
-	cli, err := docker.NewClient()
+	dockerClient, err := docker.NewClient()
 	if err != nil {
 		panic(err)
 	}
+
+	cli = dockerClient
 
 	containers, err := cli.GetContainers()
 	if err != nil {
@@ -49,7 +39,11 @@ func main() {
 
 	metrics.PrepareMetrics(containers)
 
-	go recordMetrics(cli, containers)
+	updates := make(chan []container.Container, 10)
+
+	go cli.ListenForEvents(updates)
+
+	go recordMetrics()
 
 	go metrics.Serve()
 
@@ -61,8 +55,12 @@ func main() {
 	for {
 		select {
 
+		case updatedContainers := <-updates:
+			fmt.Println("Updating with", updatedContainers)
+			metrics.PrepareMetrics(updatedContainers)
+
 		case <-ticker.C:
-			go recordMetrics(cli, containers)
+			go recordMetrics()
 
 		case s := <-signals:
 			if s != syscall.SIGHUP {
