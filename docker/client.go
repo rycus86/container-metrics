@@ -27,6 +27,7 @@ func NewClient() (*Client, error) {
 }
 
 func (c *Client) GetContainers() ([]container.Container, error) {
+	// TODO timeout
 	dockerContainers, err := c.client.ContainerList(context.Background(), dockerTypes.ContainerListOptions{})
 	if err != nil {
 		return nil, err
@@ -46,6 +47,7 @@ func (c *Client) GetContainers() ([]container.Container, error) {
 }
 
 func (c *Client) GetStats(container *container.Container) (*stats.Stats, error) {
+	// TODO timeout
 	response, err := c.client.ContainerStats(context.Background(), container.Id, false)
 	if err != nil {
 		return nil, err
@@ -68,6 +70,7 @@ func (c *Client) ListenForEvents(channel chan<- []container.Container) {
 		select {
 		case message := <-messages:
 			if message.Status == "start" || message.Status == "destroy" {
+				// TODO potential concurrency issue here with a slow update overwriting a newer one
 				go func() {
 					containers, err := c.GetContainers()
 

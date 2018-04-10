@@ -14,14 +14,14 @@ var (
 	current *PrometheusMetrics
 )
 
-type customCollector struct{}
+type currentMetricsCollector struct{}
 
-func (c *customCollector) Describe(ch chan<- *prometheus.Desc) {
+func (c *currentMetricsCollector) Describe(ch chan<- *prometheus.Desc) {
 	// This only needs to ouput *something*
 	prometheus.NewGauge(prometheus.GaugeOpts{Name: "Dummy", Help: "Dummy"}).Describe(ch)
 }
 
-func (c *customCollector) Collect(ch chan<- prometheus.Metric) {
+func (c *currentMetricsCollector) Collect(ch chan<- prometheus.Metric) {
 	if current == nil {
 		return
 	}
@@ -32,7 +32,7 @@ func (c *customCollector) Collect(ch chan<- prometheus.Metric) {
 }
 
 func init() {
-	prometheus.Register(&customCollector{})
+	prometheus.Register(&currentMetricsCollector{})
 }
 
 func PrepareMetrics(containers []container.Container) {

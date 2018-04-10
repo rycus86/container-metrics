@@ -8,19 +8,20 @@ import (
 
 type PrometheusMetrics struct {
 	Containers []container.Container
-	Labels     map[string]string
+	Labels     map[string]string  // {container.label} -> {prometheus_label}
 	Metrics    []SingleMetric
 }
 
 type SingleMetric interface {
 	prometheus.Collector
 
-	WithParent(*PrometheusMetrics)
+	WithParent(*PrometheusMetrics) SingleMetric
 	Set(*container.Container, *stats.Stats)
 }
 
 type Mapper func(*stats.Stats) float64
 
+// TODO Gauge and related into its own file
 type GaugeMetric struct {
 	Metric           *prometheus.GaugeVec
 	Mapper           Mapper
@@ -37,8 +38,9 @@ func (m *GaugeMetric) Collect(ch chan<- prometheus.Metric) {
 	m.Metric.Collect(ch)
 }
 
-func (m *GaugeMetric) WithParent(pm *PrometheusMetrics) {
+func (m *GaugeMetric) WithParent(pm *PrometheusMetrics) SingleMetric {
 	m.Parent = pm
+	return m
 }
 
 func (m *GaugeMetric) Set(c *container.Container, s *stats.Stats) {
@@ -65,8 +67,8 @@ func (m *GaugeMetric) extractLabels(c *container.Container) map[string]string {
 }
 
 func (pm *PrometheusMetrics) Add(metric SingleMetric) {
-	metric.WithParent(pm)
-	pm.Metrics = append(pm.Metrics, metric)
+	// metric.WithParent(pm)
+	pm.Metrics = append(pm.Metrics, metric.WithParent(pm))
 }
 
 func (pm *PrometheusMetrics) GetLabelNames() []string {

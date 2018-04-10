@@ -8,10 +8,14 @@ import (
 	"time"
 )
 
+var (
+	nonLettersOrDigits = regexp.MustCompile("[^A-Za-z0-9]")
+)
+
 func newGauge(name, help string, baseLabels []string, mapper Mapper, extraLabels ...string) *GaugeMetric {
 	return &GaugeMetric{
 		Metric: prometheus.NewGaugeVec(prometheus.GaugeOpts{
-			Namespace: "cntm",
+			Namespace: "cntm",  // TODO namespace?
 			Name:      name,
 			Help:      help,
 		}, append(baseLabels, extraLabels...)),
@@ -23,15 +27,21 @@ func newGauge(name, help string, baseLabels []string, mapper Mapper, extraLabels
 
 func NewMetrics(containers []container.Container) *PrometheusMetrics {
 	baseLabels := map[string]string{"container.name": "container_name"}
-
-	nonLettersOrDigits := regexp.MustCompile("[^A-Za-z0-9]")
+	hasNewLabels := false
 
 	for _, c := range containers {
 		for labelName := range c.Labels {
 			normalizedName := nonLettersOrDigits.ReplaceAllString(labelName, "_")
 			baseLabels[labelName] = normalizedName
+
+			if current != nil {
+				_, alreadyManagedLabel := current.Labels[labelName]
+				hasNewLabels = hasNewLabels || !alreadyManagedLabel
+			}
 		}
 	}
+
+	// TODO use hasNewLabels for optimization
 
 	metrics := &PrometheusMetrics{
 		Containers: containers,
