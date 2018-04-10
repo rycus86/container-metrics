@@ -74,7 +74,6 @@ func (c *Client) ListenForEvents(channel chan<- []container.Container) {
 					if err != nil {
 						fmt.Println("Failed to reload containers", err)
 					} else {
-						fmt.Println("Sending containers:", containers)
 						channel <- containers
 					}
 				}()

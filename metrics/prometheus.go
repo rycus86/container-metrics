@@ -17,12 +17,14 @@ var (
 type customCollector struct{}
 
 func (c *customCollector) Describe(ch chan<- *prometheus.Desc) {
-	fmt.Println("Describe called")
+	// This only needs to ouput *something*
 	prometheus.NewGauge(prometheus.GaugeOpts{Name: "Dummy", Help: "Dummy"}).Describe(ch)
 }
 
 func (c *customCollector) Collect(ch chan<- prometheus.Metric) {
-	fmt.Println("Collect called")
+	if current == nil {
+		return
+	}
 
 	for _, metric := range current.Metrics {
 		metric.Collect(ch)
@@ -47,8 +49,6 @@ func RecordAll(statsFunc func(*container.Container) (*stats.Stats, error)) {
 }
 
 func record(c *container.Container, statsFunc func(*container.Container) (*stats.Stats, error)) {
-	fmt.Println("Collect:", c.Name)
-
 	s, err := statsFunc(c)
 	if err != nil {
 		fmt.Println("Failed to collect stats", err)

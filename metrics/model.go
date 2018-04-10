@@ -8,11 +8,11 @@ import (
 
 type PrometheusMetrics struct {
 	Containers []container.Container
-	Labels     []string
-	Metrics    []SettableMetric
+	Labels     map[string]string
+	Metrics    []SingleMetric
 }
 
-type SettableMetric interface {
+type SingleMetric interface {
 	prometheus.Collector
 
 	WithParent(*PrometheusMetrics)
@@ -42,29 +42,41 @@ func (m *GaugeMetric) WithParent(pm *PrometheusMetrics) {
 }
 
 func (m *GaugeMetric) Set(c *container.Container, s *stats.Stats) {
-	labelNames := append(m.Parent.Labels, m.AdditionalLabels...)
-	m.Metric.With(extractLabels(c, labelNames...)).Set(m.Mapper(s))
+	m.Metric.With(m.extractLabels(c)).Set(m.Mapper(s))
 }
 
-func extractLabels(c *container.Container, names ...string) map[string]string {
+func (m *GaugeMetric) extractLabels(c *container.Container) map[string]string {
 	values := map[string]string{
 		"container_name": c.Name[1:],
 	}
 
-	for _, name := range names {
-		_, exists := values[name]
+	for name, key := range m.Parent.Labels {
+		_, exists := values[key]
 		if exists {
 			continue
 		}
 
 		label, _ := c.Labels[name]
-		values[name] = label
+		values[key] = label
 	}
 
+	// TODO additional labels - is it needed?
 	return values
 }
 
-func (pm *PrometheusMetrics) Add(metric SettableMetric) {
+func (pm *PrometheusMetrics) Add(metric SingleMetric) {
 	metric.WithParent(pm)
 	pm.Metrics = append(pm.Metrics, metric)
+}
+
+func (pm *PrometheusMetrics) GetLabelNames() []string {
+	labelNames := make([]string, len(pm.Labels), len(pm.Labels))
+
+	idx := 0
+	for _, name := range pm.Labels {
+		labelNames[idx] = name
+		idx++
+	}
+
+	return labelNames
 }

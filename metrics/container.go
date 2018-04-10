@@ -22,20 +22,15 @@ func newGauge(name, help string, baseLabels []string, mapper Mapper, extraLabels
 }
 
 func NewMetrics(containers []container.Container) *PrometheusMetrics {
-	uniqueBaseLabels := map[string]string{"container_name": ""}
+	baseLabels := map[string]string{"container.name": "container_name"}
 
 	nonLettersOrDigits := regexp.MustCompile("[^A-Za-z0-9]")
 
 	for _, c := range containers {
 		for labelName := range c.Labels {
 			normalizedName := nonLettersOrDigits.ReplaceAllString(labelName, "_")
-			uniqueBaseLabels[normalizedName] = labelName
+			baseLabels[labelName] = normalizedName
 		}
-	}
-
-	var baseLabels []string
-	for name := range uniqueBaseLabels {
-		baseLabels = append(baseLabels, name)
 	}
 
 	metrics := &PrometheusMetrics{
@@ -49,48 +44,89 @@ func NewMetrics(containers []container.Container) *PrometheusMetrics {
 }
 
 func addAllMetrics(metrics *PrometheusMetrics) {
-	// CPU
+	baseLabels := metrics.GetLabelNames()
+
+	// CPU stats
 	metrics.Add(newGauge(
-		"cpu_usage_total", "Total CPU usage", metrics.Labels,
+		"cpu_usage_total_seconds", "Total CPU usage", baseLabels,
 		func(s *stats.Stats) float64 {
 			return float64(s.CpuStats.Total) / float64(time.Second)
 		}))
 	metrics.Add(newGauge(
-		"cpu_usage_system", "CPU usage in system mode", metrics.Labels,
+		"cpu_usage_system_seconds", "CPU usage in system mode", baseLabels,
 		func(s *stats.Stats) float64 {
 			return float64(s.CpuStats.System) / float64(time.Second)
 		}))
 	metrics.Add(newGauge(
-		"cpu_usage_user", "CPU usage in user mode", metrics.Labels,
+		"cpu_usage_user_seconds", "CPU usage in user mode", baseLabels,
 		func(s *stats.Stats) float64 {
 			return float64(s.CpuStats.User) / float64(time.Second)
 		}))
 
-	//CpuStats: stats.CpuStats{
-	//	Total:  d.CPUStats.CPUUsage.TotalUsage,
-	//	System: d.CPUStats.CPUUsage.UsageInKernelmode,
-	//	User:   d.CPUStats.CPUUsage.UsageInUsermode,
-	//},
-	//
-	//	MemoryStats: stats.MemoryStats{
-	//		Total: d.MemoryStats.Limit,
-	//		Free:  d.MemoryStats.Limit - d.MemoryStats.Usage,
-	//	},
-	//
-	//		IOStats: stats.IOStats{
-	//		Read:    0,
-	//		Written: 0,
-	//	},
-	//
-	//		NetworkStats: stats.NetworkStats{
-	//		RxBytes:   0,
-	//		RxPackets: 0,
-	//		RxDropped: 0,
-	//		RxErrors:  0,
-	//
-	//		TxBytes:   0,
-	//		TxPackets: 0,
-	//		TxDropped: 0,
-	//		TxErrors:  0,
-	//	},
+	// Memory stats
+	metrics.Add(newGauge(
+		"memory_total_bytes", "Total memory available", baseLabels,
+		func(s *stats.Stats) float64 {
+			return float64(s.MemoryStats.Total)
+		}))
+	metrics.Add(newGauge(
+		"memory_free_bytes", "Free memory", baseLabels,
+		func(s *stats.Stats) float64 {
+			return float64(s.MemoryStats.Free)
+		}))
+
+	// I/O stats
+	metrics.Add(newGauge(
+		"io_read_bytes", "I/O bytes read", baseLabels,
+		func(s *stats.Stats) float64 {
+			return float64(s.IOStats.Read)
+		}))
+	metrics.Add(newGauge(
+		"io_write_bytes", "I/O bytes written", baseLabels,
+		func(s *stats.Stats) float64 {
+			return float64(s.IOStats.Written)
+		}))
+
+	// Network stats
+	metrics.Add(newGauge(
+		"net_rx_bytes", "Network receive bytes", baseLabels,
+		func(s *stats.Stats) float64 {
+			return float64(s.NetworkStats.RxBytes)
+		}))
+	metrics.Add(newGauge(
+		"net_rx_packets", "Network receive packets", baseLabels,
+		func(s *stats.Stats) float64 {
+			return float64(s.NetworkStats.RxPackets)
+		}))
+	metrics.Add(newGauge(
+		"net_rx_dropped", "Network receive packets dropped", baseLabels,
+		func(s *stats.Stats) float64 {
+			return float64(s.NetworkStats.RxDropped)
+		}))
+	metrics.Add(newGauge(
+		"net_rx_errors", "Network receive errors", baseLabels,
+		func(s *stats.Stats) float64 {
+			return float64(s.NetworkStats.RxErrors)
+		}))
+
+	metrics.Add(newGauge(
+		"net_tx_bytes", "Network transmit bytes", baseLabels,
+		func(s *stats.Stats) float64 {
+			return float64(s.NetworkStats.TxBytes)
+		}))
+	metrics.Add(newGauge(
+		"net_tx_packets", "Network transmit packets", baseLabels,
+		func(s *stats.Stats) float64 {
+			return float64(s.NetworkStats.TxPackets)
+		}))
+	metrics.Add(newGauge(
+		"net_tx_dropped", "Network transmit packets dropped", baseLabels,
+		func(s *stats.Stats) float64 {
+			return float64(s.NetworkStats.TxDropped)
+		}))
+	metrics.Add(newGauge(
+		"net_tx_errors", "Network transmit errors", baseLabels,
+		func(s *stats.Stats) float64 {
+			return float64(s.NetworkStats.TxErrors)
+		}))
 }

@@ -35,7 +35,6 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	fmt.Println("container IDs:", containers)
 
 	metrics.PrepareMetrics(containers)
 
@@ -52,11 +51,12 @@ func main() {
 
 	ticker := time.NewTicker(3 * time.Second)
 
+	fmt.Println("Running ...")
+
 	for {
 		select {
 
 		case updatedContainers := <-updates:
-			fmt.Println("Updating with", updatedContainers)
 			metrics.PrepareMetrics(updatedContainers)
 
 		case <-ticker.C:
@@ -65,6 +65,7 @@ func main() {
 		case s := <-signals:
 			if s != syscall.SIGHUP {
 				ticker.Stop()
+				fmt.Println("Exiting ...")
 				return
 			} // TODO SIGHUP
 		}
