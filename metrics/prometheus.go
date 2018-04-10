@@ -2,22 +2,23 @@ package metrics
 
 import (
 	"fmt"
+	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"github.com/rycus86/container-metrics/container"
-	"github.com/rycus86/container-metrics/stats"
+	"github.com/rycus86/container-metrics/model"
 	"net/http"
 	"runtime/debug"
 )
 
 var (
-	current *PrometheusMetrics
+	current       *PrometheusMetrics
+	noCachedStats = errors.New("Previous stats not available")
 )
 
 type currentMetricsCollector struct{}
 
 func (c *currentMetricsCollector) Describe(ch chan<- *prometheus.Desc) {
-	// This only needs to ouput *something*
+	// This only needs to output *something*
 	prometheus.NewGauge(prometheus.GaugeOpts{Name: "Dummy", Help: "Dummy"}).Describe(ch)
 }
 
@@ -35,11 +36,22 @@ func init() {
 	prometheus.Register(&currentMetricsCollector{})
 }
 
-func PrepareMetrics(containers []container.Container) {
+func PrepareMetrics(containers []model.Container) {
 	current = NewMetrics(containers)
+
+	RecordAll(recordCached)
 }
 
-func RecordAll(statsFunc func(*container.Container) (*stats.Stats, error)) {
+func recordCached(c *model.Container) (*model.Stats, error) {
+	cached := getCached(c.Id)
+	if cached != nil {
+		return cached, nil
+	} else {
+		return nil, noCachedStats
+	}
+}
+
+func RecordAll(statsFunc func(*model.Container) (*model.Stats, error)) {
 	containers := current.Containers
 
 	for _, item := range containers {
@@ -48,10 +60,13 @@ func RecordAll(statsFunc func(*container.Container) (*stats.Stats, error)) {
 	}
 }
 
-func record(c *container.Container, statsFunc func(*container.Container) (*stats.Stats, error)) {
+func record(c *model.Container, statsFunc func(*model.Container) (*model.Stats, error)) {
 	s, err := statsFunc(c)
 	if err != nil {
-		fmt.Println("Failed to collect stats", err)
+		if err != noCachedStats {
+			fmt.Println("Failed to collect stats:", err)
+		}
+
 		return
 	}
 
@@ -66,6 +81,8 @@ func record(c *container.Container, statsFunc func(*container.Container) (*stats
 	for _, metric := range current.Metrics {
 		metric.Set(c, s)
 	}
+
+	cacheStats(c.Id, s)
 }
 
 func Serve() {

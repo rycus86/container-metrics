@@ -2,31 +2,31 @@ package docker
 
 import (
 	"github.com/docker/docker/api/types"
-	"github.com/rycus86/container-metrics/stats"
+	"github.com/rycus86/container-metrics/model"
 )
 
-func convertStats(d *types.StatsJSON) *stats.Stats {
-	s := stats.Stats{
+func convertStats(d *types.StatsJSON) *model.Stats {
+	s := model.Stats{
 		Id:   d.ID,
 		Name: d.Name,
 
-		CpuStats: stats.CpuStats{
+		CpuStats: model.CpuStats{
 			Total:  d.CPUStats.CPUUsage.TotalUsage,
 			System: d.CPUStats.CPUUsage.UsageInKernelmode,
 			User:   d.CPUStats.CPUUsage.UsageInUsermode,
 		},
 
-		MemoryStats: stats.MemoryStats{
+		MemoryStats: model.MemoryStats{
 			Total: d.MemoryStats.Limit,
 			Free:  d.MemoryStats.Limit - d.MemoryStats.Usage,
 		},
 
-		IOStats: stats.IOStats{
+		IOStats: model.IOStats{
 			Read:    0,
 			Written: 0,
 		},
 
-		NetworkStats: stats.NetworkStats{
+		NetworkStats: model.NetworkStats{
 			RxBytes:   0,
 			RxPackets: 0,
 			RxDropped: 0,

@@ -7,12 +7,13 @@ import (
 	"fmt"
 	dockerTypes "github.com/docker/docker/api/types"
 	dockerClient "github.com/docker/docker/client"
-	"github.com/rycus86/container-metrics/container"
-	"github.com/rycus86/container-metrics/stats"
+	"github.com/rycus86/container-metrics/model"
+	"time"
 )
 
 type Client struct {
 	client *dockerClient.Client
+	latest *map[string]model.Container
 }
 
 func NewClient() (*Client, error) {
@@ -26,29 +27,39 @@ func NewClient() (*Client, error) {
 	}, nil
 }
 
-func (c *Client) GetContainers() ([]container.Container, error) {
-	// TODO timeout
-	dockerContainers, err := c.client.ContainerList(context.Background(), dockerTypes.ContainerListOptions{})
+func (c *Client) GetContainers() ([]model.Container, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	dockerContainers, err := c.client.ContainerList(ctx, dockerTypes.ContainerListOptions{})
 	if err != nil {
 		return nil, err
 	}
 
-	containers := make([]container.Container, len(dockerContainers))
+	containers := make([]model.Container, len(dockerContainers))
+	mapped := map[string]model.Container{}
 
 	for idx, item := range dockerContainers {
-		containers[idx] = container.Container{
+		containers[idx] = model.Container{
 			Id:     item.ID,
 			Name:   item.Names[0],
+			Image:  item.Image,
 			Labels: item.Labels,
 		}
+
+		mapped[item.ID] = containers[idx]
 	}
+
+	c.latest = &mapped
 
 	return containers, nil
 }
 
-func (c *Client) GetStats(container *container.Container) (*stats.Stats, error) {
-	// TODO timeout
-	response, err := c.client.ContainerStats(context.Background(), container.Id, false)
+func (c *Client) GetStats(container *model.Container) (*model.Stats, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	response, err := c.client.ContainerStats(ctx, container.Id, false)
 	if err != nil {
 		return nil, err
 	}
@@ -63,23 +74,40 @@ func (c *Client) GetStats(container *container.Container) (*stats.Stats, error) 
 	return convertStats(&dockerStats), nil
 }
 
-func (c *Client) ListenForEvents(channel chan<- []container.Container) {
+func (c *Client) ListenForEvents(channel chan<- []model.Container) {
 	messages, errors := c.client.Events(context.Background(), dockerTypes.EventsOptions{})
 
 	for {
 		select {
 		case message := <-messages:
 			if message.Status == "start" || message.Status == "destroy" {
-				// TODO potential concurrency issue here with a slow update overwriting a newer one
-				go func() {
-					containers, err := c.GetContainers()
+				waitFor := make(chan interface{})
+
+				func() {
+					previous := *c.latest
+					newContainers, err := c.GetContainers()
+
+					containers := make([]model.Container, len(newContainers), len(newContainers))
+
+					for idx, container := range newContainers {
+						if existing, ok := previous[container.Id]; ok {
+							containers[idx] = existing
+						} else {
+							containers[idx] = container
+						}
+					}
 
 					if err != nil {
 						fmt.Println("Failed to reload containers", err)
 					} else {
+						fmt.Println("Reloading with", len(containers), "containers")
 						channel <- containers
 					}
+
+					close(waitFor)
 				}()
+
+				<-waitFor
 			}
 
 		case <-errors:

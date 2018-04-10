@@ -1,4 +1,4 @@
-package stats
+package model
 
 type Stats struct {
 	Id   string

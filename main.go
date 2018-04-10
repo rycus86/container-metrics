@@ -7,10 +7,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/rycus86/container-metrics/container"
 	"github.com/rycus86/container-metrics/docker"
 	"github.com/rycus86/container-metrics/metrics"
-	"github.com/rycus86/container-metrics/stats"
+	"github.com/rycus86/container-metrics/model"
 )
 
 var cli *docker.Client
@@ -19,7 +18,7 @@ func recordMetrics() {
 	metrics.RecordAll(statsFunc)
 }
 
-func statsFunc(c *container.Container) (*stats.Stats, error) {
+func statsFunc(c *model.Container) (*model.Stats, error) {
 	return cli.GetStats(c)
 }
 
@@ -38,7 +37,7 @@ func main() {
 
 	metrics.PrepareMetrics(containers)
 
-	updates := make(chan []container.Container, 10)
+	updates := make(chan []model.Container)
 
 	go cli.ListenForEvents(updates)
 

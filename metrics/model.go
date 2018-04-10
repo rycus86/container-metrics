@@ -2,13 +2,12 @@ package metrics
 
 import (
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/rycus86/container-metrics/container"
-	"github.com/rycus86/container-metrics/stats"
+	"github.com/rycus86/container-metrics/model"
 )
 
 type PrometheusMetrics struct {
-	Containers []container.Container
-	Labels     map[string]string  // {container.label} -> {prometheus_label}
+	Containers []model.Container
+	Labels     map[string]string // {container.label} -> {prometheus_label}
 	Metrics    []SingleMetric
 }
 
@@ -16,54 +15,7 @@ type SingleMetric interface {
 	prometheus.Collector
 
 	WithParent(*PrometheusMetrics) SingleMetric
-	Set(*container.Container, *stats.Stats)
-}
-
-type Mapper func(*stats.Stats) float64
-
-// TODO Gauge and related into its own file
-type GaugeMetric struct {
-	Metric           *prometheus.GaugeVec
-	Mapper           Mapper
-	AdditionalLabels []string
-
-	Parent *PrometheusMetrics
-}
-
-func (m *GaugeMetric) Describe(ch chan<- *prometheus.Desc) {
-	m.Metric.Describe(ch)
-}
-
-func (m *GaugeMetric) Collect(ch chan<- prometheus.Metric) {
-	m.Metric.Collect(ch)
-}
-
-func (m *GaugeMetric) WithParent(pm *PrometheusMetrics) SingleMetric {
-	m.Parent = pm
-	return m
-}
-
-func (m *GaugeMetric) Set(c *container.Container, s *stats.Stats) {
-	m.Metric.With(m.extractLabels(c)).Set(m.Mapper(s))
-}
-
-func (m *GaugeMetric) extractLabels(c *container.Container) map[string]string {
-	values := map[string]string{
-		"container_name": c.Name[1:],
-	}
-
-	for name, key := range m.Parent.Labels {
-		_, exists := values[key]
-		if exists {
-			continue
-		}
-
-		label, _ := c.Labels[name]
-		values[key] = label
-	}
-
-	// TODO additional labels - is it needed?
-	return values
+	Set(*model.Container, *model.Stats)
 }
 
 func (pm *PrometheusMetrics) Add(metric SingleMetric) {
