@@ -24,29 +24,31 @@ func newGauge(name, help string, baseLabels []string, mapper Mapper, extraLabels
 	}
 }
 
+func newEngineGauge(name, help string, mapper EngineMapper) *EngineGaugeMetric {
+	return &EngineGaugeMetric{
+		Metric: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: "cntm",
+			Name:      name,
+			Help:      help,
+		}, []string{"engine_host"}),
+
+		Mapper: mapper,
+	}
+}
+
 func NewMetrics(containers []model.Container) *PrometheusMetrics {
 	baseLabels := map[string]string{
 		"container.name":  "container_name",
 		"container.image": "container_image",
+		"engine.host":     "engine_host",
 	}
-
-	// TODO engine labels maybe -- host?
-
-	hasNewLabels := false
 
 	for _, c := range containers {
 		for labelName := range c.Labels {
 			normalizedName := nonLettersOrDigits.ReplaceAllString(labelName, "_")
 			baseLabels[labelName] = normalizedName
-
-			if current != nil {
-				_, alreadyManagedLabel := current.Labels[labelName]
-				hasNewLabels = hasNewLabels || !alreadyManagedLabel
-			}
 		}
 	}
-
-	// TODO use hasNewLabels for optimization ?
 
 	metrics := &PrometheusMetrics{
 		Containers: containers,
@@ -55,11 +57,47 @@ func NewMetrics(containers []model.Container) *PrometheusMetrics {
 
 	addAllMetrics(metrics)
 
+	if current != nil {
+		recordEngineStatsOn(metrics, current.EngineStats)
+	}
+
 	return metrics
 }
 
 func addAllMetrics(metrics *PrometheusMetrics) {
 	baseLabels := metrics.GetLabelNames()
+
+	// Engine metrics
+	metrics.AddEngine(newEngineGauge(
+		"engine_num_images", "Number of images",
+		func(stats *model.EngineStats) float64 {
+			return float64(stats.Images)
+		},
+	))
+	metrics.AddEngine(newEngineGauge(
+		"engine_num_containers", "Number of containers",
+		func(stats *model.EngineStats) float64 {
+			return float64(stats.Containers)
+		},
+	))
+	metrics.AddEngine(newEngineGauge(
+		"engine_num_containers_running", "Number of running containers",
+		func(stats *model.EngineStats) float64 {
+			return float64(stats.ContainersRunning)
+		},
+	))
+	metrics.AddEngine(newEngineGauge(
+		"engine_num_containers_stopped", "Number of stopped containers",
+		func(stats *model.EngineStats) float64 {
+			return float64(stats.ContainersStopped)
+		},
+	))
+	metrics.AddEngine(newEngineGauge(
+		"engine_num_containers_paused", "Number of paused containers",
+		func(stats *model.EngineStats) float64 {
+			return float64(stats.ContainersPaused)
+		},
+	))
 
 	// CPU model
 	metrics.Add(newGauge(

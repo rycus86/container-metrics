@@ -34,8 +34,9 @@ func (m *GaugeMetric) Set(c *model.Container, s *model.Stats) {
 
 func (m *GaugeMetric) extractLabels(c *model.Container) map[string]string {
 	values := map[string]string{
-		"container_name": c.Name[1:],
+		"container_name":  c.Name[1:],
 		"container_image": c.Image,
+		"engine_host":     m.Parent.EngineStats.Host,
 	}
 
 	for name, key := range m.Parent.Labels {

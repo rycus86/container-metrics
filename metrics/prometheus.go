@@ -30,10 +30,30 @@ func (c *currentMetricsCollector) Collect(ch chan<- prometheus.Metric) {
 	for _, metric := range current.Metrics {
 		metric.Collect(ch)
 	}
+
+	for _, metric := range current.EngineMetrics {
+		metric.Collect(ch)
+	}
 }
 
 func init() {
 	prometheus.Register(&currentMetricsCollector{})
+}
+
+func RecordEngineStats(stats *model.EngineStats) {
+	if current == nil {
+		return
+	}
+
+	recordEngineStatsOn(current, stats)
+}
+
+func recordEngineStatsOn(pm *PrometheusMetrics, stats *model.EngineStats) {
+	pm.EngineStats = stats
+
+	for _, metric := range pm.EngineMetrics {
+		metric.Set(stats)
+	}
 }
 
 func PrepareMetrics(containers []model.Container) {

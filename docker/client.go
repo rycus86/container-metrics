@@ -27,6 +27,25 @@ func NewClient() (*Client, error) {
 	}, nil
 }
 
+func (c *Client) GetEngineStats() (*model.EngineStats, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	info, err := c.client.Info(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return &model.EngineStats{
+		Host:              info.Name,
+		Images:            info.Images,
+		Containers:        info.Containers,
+		ContainersRunning: info.ContainersRunning,
+		ContainersStopped: info.ContainersStopped,
+		ContainersPaused:  info.ContainersPaused,
+	}, nil
+}
+
 func (c *Client) GetContainers() ([]model.Container, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()

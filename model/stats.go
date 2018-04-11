@@ -37,3 +37,13 @@ type NetworkStats struct {
 	TxDropped uint64
 	TxErrors  uint64
 }
+
+type EngineStats struct {
+	Host          string
+
+	Images            int
+	Containers        int
+	ContainersRunning int
+	ContainersPaused  int
+	ContainersStopped int
+}

@@ -15,7 +15,18 @@ import (
 var cli *docker.Client
 
 func recordMetrics() {
+	go recordEngineStats()
+	
 	metrics.RecordAll(statsFunc)
+}
+
+func recordEngineStats() {
+	engineStats, err := cli.GetEngineStats()
+	if err != nil {
+		panic(err)
+	}
+
+	go metrics.RecordEngineStats(engineStats)
 }
 
 func statsFunc(c *model.Container) (*model.Stats, error) {
@@ -36,6 +47,8 @@ func main() {
 	}
 
 	metrics.PrepareMetrics(containers)
+
+	go recordEngineStats()
 
 	updates := make(chan []model.Container)
 

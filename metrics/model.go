@@ -9,6 +9,9 @@ type PrometheusMetrics struct {
 	Containers []model.Container
 	Labels     map[string]string // {container.label} -> {prometheus_label}
 	Metrics    []SingleMetric
+
+	EngineStats   *model.EngineStats
+	EngineMetrics []EngineMetric
 }
 
 type SingleMetric interface {
@@ -18,9 +21,18 @@ type SingleMetric interface {
 	Set(*model.Container, *model.Stats)
 }
 
+type EngineMetric interface {
+	prometheus.Collector
+
+	Set(*model.EngineStats)
+}
+
 func (pm *PrometheusMetrics) Add(metric SingleMetric) {
-	// metric.WithParent(pm)
 	pm.Metrics = append(pm.Metrics, metric.WithParent(pm))
+}
+
+func (pm *PrometheusMetrics) AddEngine(metric EngineMetric) {
+	pm.EngineMetrics = append(pm.EngineMetrics, metric)
 }
 
 func (pm *PrometheusMetrics) GetLabelNames() []string {
