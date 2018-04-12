@@ -1,40 +1,15 @@
 package metrics
 
 import (
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/rycus86/container-metrics/model"
 	"regexp"
 	"time"
+
+	"github.com/rycus86/container-metrics/model"
 )
 
 var (
 	nonLettersOrDigits = regexp.MustCompile("[^A-Za-z0-9_]")
 )
-
-func newGauge(name, help string, baseLabels []string, mapper Mapper, extraLabels ...string) *GaugeMetric {
-	return &GaugeMetric{
-		Metric: prometheus.NewGaugeVec(prometheus.GaugeOpts{
-			Namespace: "cntm", // TODO namespace?
-			Name:      name,
-			Help:      help,
-		}, append(baseLabels, extraLabels...)),
-
-		AdditionalLabels: extraLabels,
-		Mapper:           mapper,
-	}
-}
-
-func newEngineGauge(name, help string, mapper EngineMapper) *EngineGaugeMetric {
-	return &EngineGaugeMetric{
-		Metric: prometheus.NewGaugeVec(prometheus.GaugeOpts{
-			Namespace: "cntm",
-			Name:      name,
-			Help:      help,
-		}, []string{"engine_host"}),
-
-		Mapper: mapper,
-	}
-}
 
 func NewMetrics(containers []model.Container) *PrometheusMetrics {
 	baseLabels := map[string]string{
@@ -57,7 +32,7 @@ func NewMetrics(containers []model.Container) *PrometheusMetrics {
 
 	addAllMetrics(metrics)
 
-	if current != nil {
+	if current := getCurrent(); current != nil {
 		recordEngineStatsOn(metrics, current.EngineStats)
 	}
 

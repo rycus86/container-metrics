@@ -3,32 +3,34 @@ package docker
 import (
 	"context"
 	"encoding/json"
+	"log"
+	"time"
 
-	"fmt"
 	dockerTypes "github.com/docker/docker/api/types"
 	dockerClient "github.com/docker/docker/client"
+
 	"github.com/rycus86/container-metrics/model"
-	"time"
 )
 
 type Client struct {
-	client *dockerClient.Client
-	latest *map[string]model.Container
+	client  *dockerClient.Client
+	timeout time.Duration
 }
 
-func NewClient() (*Client, error) {
+func NewClient(timeout time.Duration) (*Client, error) {
 	cli, err := dockerClient.NewEnvClient()
 	if err != nil {
 		return nil, err
 	}
 
 	return &Client{
-		client: cli,
+		client:  cli,
+		timeout: timeout,
 	}, nil
 }
 
 func (c *Client) GetEngineStats() (*model.EngineStats, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
 	defer cancel()
 
 	info, err := c.client.Info(ctx)
@@ -47,7 +49,7 @@ func (c *Client) GetEngineStats() (*model.EngineStats, error) {
 }
 
 func (c *Client) GetContainers() ([]model.Container, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
 	defer cancel()
 
 	dockerContainers, err := c.client.ContainerList(ctx, dockerTypes.ContainerListOptions{})
@@ -61,7 +63,7 @@ func (c *Client) GetContainers() ([]model.Container, error) {
 	for idx, item := range dockerContainers {
 		containers[idx] = model.Container{
 			Id:     item.ID,
-			Name:   item.Names[0],
+			Name:   item.Names[0][1:],
 			Image:  item.Image,
 			Labels: item.Labels,
 		}
@@ -69,13 +71,11 @@ func (c *Client) GetContainers() ([]model.Container, error) {
 		mapped[item.ID] = containers[idx]
 	}
 
-	c.latest = &mapped
-
 	return containers, nil
 }
 
 func (c *Client) GetStats(container *model.Container) (*model.Stats, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
 	defer cancel()
 
 	response, err := c.client.ContainerStats(ctx, container.Id, false)
@@ -103,23 +103,10 @@ func (c *Client) ListenForEvents(channel chan<- []model.Container) {
 				waitFor := make(chan interface{})
 
 				func() {
-					previous := *c.latest
-					newContainers, err := c.GetContainers()
-
-					containers := make([]model.Container, len(newContainers), len(newContainers))
-
-					for idx, container := range newContainers {
-						if existing, ok := previous[container.Id]; ok {
-							containers[idx] = existing
-						} else {
-							containers[idx] = container
-						}
-					}
-
+					containers, err := c.GetContainers()
 					if err != nil {
-						fmt.Println("Failed to reload containers", err)
+						log.Println("Failed to reload containers", err)
 					} else {
-						fmt.Println("Reloading with", len(containers), "containers")
 						channel <- containers
 					}
 
@@ -130,7 +117,7 @@ func (c *Client) ListenForEvents(channel chan<- []model.Container) {
 			}
 
 		case <-errors:
-			fmt.Println("Stop listening for events")
+			log.Println("Stop listening for events")
 			return
 		}
 	}

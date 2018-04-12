@@ -2,6 +2,7 @@ package metrics
 
 import (
 	"testing"
+
 	"github.com/rycus86/container-metrics/model"
 )
 

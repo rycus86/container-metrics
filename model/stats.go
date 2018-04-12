@@ -39,7 +39,7 @@ type NetworkStats struct {
 }
 
 type EngineStats struct {
-	Host          string
+	Host string
 
 	Images            int
 	Containers        int

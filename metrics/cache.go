@@ -1,13 +1,14 @@
 package metrics
 
 import (
-	"github.com/rycus86/container-metrics/model"
 	"sync"
+
+	"github.com/rycus86/container-metrics/model"
 )
 
 var (
 	statsCache = map[string]*model.Stats{}
-	statsLock = sync.Mutex{}
+	statsLock  = sync.Mutex{}
 )
 
 func getCached(id string) *model.Stats {

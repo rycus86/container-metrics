@@ -1,19 +1,20 @@
 package metrics
 
 import (
-	"fmt"
+	"log"
+	"net/http"
+	"strconv"
+
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+
 	"github.com/rycus86/container-metrics/model"
-	"net/http"
-	"runtime/debug"
 )
 
-var (
-	current       *PrometheusMetrics
-	noCachedStats = errors.New("Previous stats not available")
-)
+const defaultNamespace = "cntm"
+
+var noCachedStats = errors.New("Previous stats not available")
 
 type currentMetricsCollector struct{}
 
@@ -23,6 +24,8 @@ func (c *currentMetricsCollector) Describe(ch chan<- *prometheus.Desc) {
 }
 
 func (c *currentMetricsCollector) Collect(ch chan<- prometheus.Metric) {
+	current := getCurrent()
+
 	if current == nil {
 		return
 	}
@@ -41,11 +44,9 @@ func init() {
 }
 
 func RecordEngineStats(stats *model.EngineStats) {
-	if current == nil {
-		return
+	if current := getCurrent(); current != nil {
+		recordEngineStatsOn(current, stats)
 	}
-
-	recordEngineStatsOn(current, stats)
 }
 
 func recordEngineStatsOn(pm *PrometheusMetrics, stats *model.EngineStats) {
@@ -61,8 +62,7 @@ func recordEngineStatsOn(pm *PrometheusMetrics, stats *model.EngineStats) {
 }
 
 func PrepareMetrics(containers []model.Container) {
-	current = NewMetrics(containers)
-
+	setCurrent(NewMetrics(containers))
 	RecordAll(recordCached)
 }
 
@@ -76,7 +76,7 @@ func recordCached(c *model.Container) (*model.Stats, error) {
 }
 
 func RecordAll(statsFunc func(*model.Container) (*model.Stats, error)) {
-	containers := current.Containers
+	containers := getCurrent().Containers
 
 	for _, item := range containers {
 		current := item
@@ -88,28 +88,22 @@ func record(c *model.Container, statsFunc func(*model.Container) (*model.Stats, 
 	s, err := statsFunc(c)
 	if err != nil {
 		if err != noCachedStats {
-			fmt.Println("Failed to collect stats:", err)
+			log.Println("Failed to collect stats for", c.Name, err)
 		}
 
 		return
 	}
 
-	defer func() {
-		err := recover()
-		if err != nil {
-			fmt.Println("Recovered:", err)
-			fmt.Println(string(debug.Stack()))
-		}
-	}()
-
-	for _, metric := range current.Metrics {
+	for _, metric := range getCurrent().Metrics {
 		metric.Set(c, s)
 	}
 
 	cacheStats(c.Id, s)
 }
 
-func Serve() {
+func Serve(port int) {
+	log.Println("Serving metrics on port", port)
+
 	http.Handle("/metrics", promhttp.Handler())
-	http.ListenAndServe(":8080", nil)
+	http.ListenAndServe(":"+strconv.Itoa(port), nil)
 }

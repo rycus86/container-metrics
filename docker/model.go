@@ -8,7 +8,7 @@ import (
 func convertStats(d *types.StatsJSON) *model.Stats {
 	s := model.Stats{
 		Id:   d.ID,
-		Name: d.Name,
+		Name: d.Name[1:],
 
 		CpuStats: model.CpuStats{
 			Total:  d.CPUStats.CPUUsage.TotalUsage,
