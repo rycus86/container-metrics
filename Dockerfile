@@ -22,4 +22,4 @@ LABEL maintainer "Viktor Adam <rycus86@gmail.com>"
 
 COPY --from=builder /var/tmp/app /container-metrics
 
-CMD [ "/container-metrics" ]
+ENTRYPOINT [ "/container-metrics" ]
