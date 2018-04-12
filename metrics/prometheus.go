@@ -49,6 +49,10 @@ func RecordEngineStats(stats *model.EngineStats) {
 }
 
 func recordEngineStatsOn(pm *PrometheusMetrics, stats *model.EngineStats) {
+	if stats == nil {
+		return
+	}
+
 	pm.EngineStats = stats
 
 	for _, metric := range pm.EngineMetrics {
