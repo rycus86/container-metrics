@@ -12,6 +12,7 @@ import (
 	"github.com/rycus86/container-metrics/logging"
 	"github.com/rycus86/container-metrics/metrics"
 	"github.com/rycus86/container-metrics/model"
+	"strings"
 )
 
 type MetricsCollector struct {
@@ -114,6 +115,7 @@ func main() {
 		port     int
 		interval time.Duration
 		timeout  time.Duration
+		labels	 string
 		debug    bool
 		verbose  bool
 	)
@@ -135,6 +137,11 @@ func main() {
 		"Timeout for calling endpoints on the engine")
 	flag.DurationVar(&timeout, "t", 30*time.Second,
 		"Timeout for calling endpoints on the engine (shorthand)")
+	// -l or -labels
+	flag.StringVar(&labels, "labels", "",
+		"Labels to keep (comma separated, accepts regex)")
+	flag.StringVar(&labels, "l", "",
+		"Labels to keep (comma separated, accepts regex) (shorthand)")
 	// -d or -debug
 	flag.BoolVar(&debug, "debug", false,
 		"Enable debug messages")
@@ -150,7 +157,7 @@ func main() {
 
 	logging.Setup(debug, verbose)
 
-	dockerClient, err := docker.NewClient(timeout)
+	dockerClient, err := docker.NewClient(timeout, strings.Split(labels, ","))
 	if err != nil {
 		log.Panicln("Failed to connect to the Docker daemon", err)
 	}

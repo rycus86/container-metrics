@@ -5,6 +5,4 @@ type Container struct {
 	Name   string
 	Image  string
 	Labels map[string]string
-
-	ComputedLabels map[string]string
 }

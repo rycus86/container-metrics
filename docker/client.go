@@ -11,22 +11,25 @@ import (
 	dockerClient "github.com/docker/docker/client"
 
 	"github.com/rycus86/container-metrics/model"
+	"regexp"
 )
 
 type Client struct {
-	client  *dockerClient.Client
-	timeout time.Duration
+	client       *dockerClient.Client
+	timeout      time.Duration
+	labelFilters []string
 }
 
-func NewClient(timeout time.Duration) (*Client, error) {
+func NewClient(timeout time.Duration, labelFilters []string) (*Client, error) {
 	cli, err := dockerClient.NewClientWithOpts(dockerClient.WithVersion(""))
 	if err != nil {
 		return nil, err
 	}
 
 	return &Client{
-		client:  cli,
-		timeout: timeout,
+		client:       cli,
+		timeout:      timeout,
+		labelFilters: labelFilters,
 	}, nil
 }
 
@@ -71,15 +74,50 @@ func (c *Client) GetContainers() ([]model.Container, error) {
 
 		containers[idx] = model.Container{
 			Id:     item.ID,
-			Name:   item.Names[0][1:],
-			Image:  imageName,
-			Labels: item.Labels,
+			Name:   getContainerName(item),
+			Image:  getContainerImage(item),
+			Labels: c.getLabelsFor(item),
 		}
 
 		mapped[item.ID] = containers[idx]
 	}
 
 	return containers, nil
+}
+
+func getContainerName(c dockerTypes.Container) string {
+	return c.Names[0][1:]
+}
+
+func getContainerImage(c dockerTypes.Container) string {
+	imageName := c.Image
+
+	// strip the hash after the @ if present
+	if atIndex := strings.Index(imageName, "@"); atIndex >= 0 {
+		imageName = imageName[0:atIndex]
+	}
+
+	return imageName
+}
+
+func (c *Client) getLabelsFor(dc dockerTypes.Container) map[string]string {
+	// return all labels if there aren't any filters
+	if len(c.labelFilters) == 1 && c.labelFilters[0] == "" {
+		return dc.Labels
+	}
+
+	filteredLabels := map[string]string{}
+
+	for name, value := range dc.Labels {
+		for _, filter := range c.labelFilters {
+			// ignore case, match from the start
+			if matched, err := regexp.MatchString("(?i)^" + filter, name); err == nil && matched {
+				filteredLabels[name] = value
+			}
+		}
+	}
+
+	return filteredLabels
 }
 
 func (c *Client) GetStats(container *model.Container) (*model.Stats, error) {
