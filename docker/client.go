@@ -19,7 +19,7 @@ type Client struct {
 }
 
 func NewClient(timeout time.Duration) (*Client, error) {
-	cli, err := dockerClient.NewEnvClient()
+	cli, err := dockerClient.NewClientWithOpts(dockerClient.WithVersion(""))
 	if err != nil {
 		return nil, err
 	}
@@ -63,8 +63,10 @@ func (c *Client) GetContainers() ([]model.Container, error) {
 
 	for idx, item := range dockerContainers {
 		imageName := item.Image
-		if at_index := strings.Index(imageName, "@"); at_index >= 0 {
-			imageName = imageName[0:at_index]
+
+		// strip the hash after the @ if present
+		if atIndex := strings.Index(imageName, "@"); atIndex >= 0 {
+			imageName = imageName[0:atIndex]
 		}
 
 		containers[idx] = model.Container{

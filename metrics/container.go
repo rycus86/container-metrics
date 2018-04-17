@@ -93,17 +93,7 @@ func addAllMetrics(metrics *PrometheusMetrics) {
 	metrics.Add(newGauge(
 		"cpu_usage_percent", "Total CPU usage in percent", baseLabels,
 		func(s *model.Stats) float64 {
-			previous := getCached(s.Id)
-			if previous == nil {
-				return 0
-			}
-
-			delta := s.Read.Sub(previous.Read)
-			diff := float64(s.CpuStats.Total - previous.CpuStats.Total) / float64(time.Second)
-
-			// TODO how does the docker CLI compute this?
-			// TODO https://github.com/docker/docker-ce/blob/master/components/cli/cli/command/container/stats_helpers.go
-			return diff / delta.Seconds()
+			return s.CpuStats.Percent
 		}))
 
 	// Memory metrics
@@ -120,17 +110,7 @@ func addAllMetrics(metrics *PrometheusMetrics) {
 	metrics.Add(newGauge(
 		"memory_usage_percent", "Memory usage in percent", baseLabels,
 		func(s *model.Stats) float64 {
-			return float64(s.MemoryStats.Usage * 100) / float64(s.MemoryStats.Total)
-		}))
-	metrics.Add(newGauge(
-		"memory_free_bytes", "Free memory", baseLabels,
-		func(s *model.Stats) float64 {
-			return float64(s.MemoryStats.Free)
-		}))
-	metrics.Add(newGauge(
-		"memory_free_percent", "Free memory in percent", baseLabels,
-		func(s *model.Stats) float64 {
-			return float64(s.MemoryStats.Free * 100) / float64(s.MemoryStats.Total)
+			return s.MemoryStats.Percent
 		}))
 
 	// I/O metrics

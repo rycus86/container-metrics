@@ -12,18 +12,18 @@ func convertStats(d *types.StatsJSON, osType string) *model.Stats {
 	s := model.Stats{
 		Id:   d.ID,
 		Name: d.Name[1:],
-		Read: d.Read,
 
 		CpuStats: model.CpuStats{
-			Total:  d.CPUStats.CPUUsage.TotalUsage,
-			System: d.CPUStats.CPUUsage.UsageInKernelmode,
-			User:   d.CPUStats.CPUUsage.UsageInUsermode,
+			Total:   d.CPUStats.CPUUsage.TotalUsage,
+			System:  d.CPUStats.CPUUsage.UsageInKernelmode,
+			User:    d.CPUStats.CPUUsage.UsageInUsermode,
+			Percent: calculateCPUPercent(d, osType),
 		},
 
 		MemoryStats: model.MemoryStats{
-			Total: d.MemoryStats.Limit,
-			Usage: d.MemoryStats.Usage,
-			Free:  d.MemoryStats.Limit - d.MemoryStats.Usage,
+			Total:   d.MemoryStats.Limit,
+			Usage:   calculateMemUsage(d, osType),
+			Percent: calculateMemPercent(d, osType),
 		},
 
 		IOStats: model.IOStats{
@@ -68,6 +68,36 @@ func convertStats(d *types.StatsJSON, osType string) *model.Stats {
 	return &s
 }
 
+func calculateCPUPercent(v *types.StatsJSON, osType string) float64 {
+	if osType != "windows" {
+		previousCPU := v.PreCPUStats.CPUUsage.TotalUsage
+		previousSystem := v.PreCPUStats.SystemUsage
+		return calculateCPUPercentUnix(previousCPU, previousSystem, v)
+	} else {
+		return calculateCPUPercentWindows(v)
+	}
+}
+
+func calculateMemUsage(v *types.StatsJSON, osType string) float64 {
+	if osType != "windows" {
+		return calculateMemUsageUnixNoCache(v.MemoryStats)
+	}
+
+	return 0
+}
+
+func calculateMemPercent(v *types.StatsJSON, osType string) float64 {
+	if osType != "windows" {
+		mem := calculateMemUsageUnixNoCache(v.MemoryStats)
+		memLimit := float64(v.MemoryStats.Limit)
+		return calculateMemPercentUnixNoCache(memLimit, mem)
+	}
+
+	return 0
+}
+
+// taken from https://github.com/docker/docker-ce/blob/master/components/cli/cli/command/container/stats_helpers.go
+
 func calculateCPUPercentUnix(previousCPU, previousSystem uint64, v *types.StatsJSON) float64 {
 	var (
 		cpuPercent = 0.0
@@ -75,9 +105,7 @@ func calculateCPUPercentUnix(previousCPU, previousSystem uint64, v *types.StatsJ
 		cpuDelta = float64(v.CPUStats.CPUUsage.TotalUsage) - float64(previousCPU)
 		// calculate the change for the entire system between readings
 		systemDelta = float64(v.CPUStats.SystemUsage) - float64(previousSystem)
-		onlineCPUs = 0.0
-		// TODO docker/docker-ce ?
-		// onlineCPUs  = float64(v.CPUStats.OnlineCPUs)
+		onlineCPUs  = float64(v.CPUStats.OnlineCPUs)
 	)
 
 	if onlineCPUs == 0.0 {
@@ -103,29 +131,6 @@ func calculateCPUPercentWindows(v *types.StatsJSON) float64 {
 		return float64(intervalsUsed) / float64(possIntervals) * 100.0
 	}
 	return 0.00
-}
-
-func calculateBlockIO(blkio types.BlkioStats) (uint64, uint64) {
-	var blkRead, blkWrite uint64
-	for _, bioEntry := range blkio.IoServiceBytesRecursive {
-		switch strings.ToLower(bioEntry.Op) {
-		case "read":
-			blkRead = blkRead + bioEntry.Value
-		case "write":
-			blkWrite = blkWrite + bioEntry.Value
-		}
-	}
-	return blkRead, blkWrite
-}
-
-func calculateNetwork(network map[string]types.NetworkStats) (float64, float64) {
-	var rx, tx float64
-
-	for _, v := range network {
-		rx += float64(v.RxBytes)
-		tx += float64(v.TxBytes)
-	}
-	return rx, tx
 }
 
 // calculateMemUsageUnixNoCache calculate memory usage of the container.

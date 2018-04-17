@@ -28,3 +28,11 @@
 [prune]
   go-tests = true
   unused-packages = true
+
+[[constraint]]
+  name = "github.com/docker/docker"
+  branch = "master"
+
+[[override]]
+  name = "github.com/docker/distribution"
+  branch = "master"
