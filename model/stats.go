@@ -1,8 +1,13 @@
 package model
 
+import (
+	"time"
+)
+
 type Stats struct {
 	Id   string
 	Name string
+	Read time.Time
 
 	CpuStats     CpuStats
 	MemoryStats  MemoryStats
@@ -11,14 +16,17 @@ type Stats struct {
 }
 
 type CpuStats struct {
-	Total  uint64
-	User   uint64
-	System uint64
+	Total   uint64
+	User    uint64
+	System  uint64
+	Percent float64
 }
 
 type MemoryStats struct {
-	Total uint64
-	Free  uint64
+	Total   uint64
+	Usage   uint64
+	Free    uint64
+	Percent float64
 }
 
 type IOStats struct {

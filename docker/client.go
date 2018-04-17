@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"log"
+	"strings"
 	"time"
 
 	dockerTypes "github.com/docker/docker/api/types"
@@ -61,10 +62,15 @@ func (c *Client) GetContainers() ([]model.Container, error) {
 	mapped := map[string]model.Container{}
 
 	for idx, item := range dockerContainers {
+		imageName := item.Image
+		if at_index := strings.Index(imageName, "@"); at_index >= 0 {
+			imageName = imageName[0:at_index]
+		}
+
 		containers[idx] = model.Container{
 			Id:     item.ID,
 			Name:   item.Names[0][1:],
-			Image:  item.Image,
+			Image:  imageName,
 			Labels: item.Labels,
 		}
 
@@ -90,7 +96,7 @@ func (c *Client) GetStats(container *model.Container) (*model.Stats, error) {
 		return nil, err
 	}
 
-	return convertStats(&dockerStats), nil
+	return convertStats(&dockerStats, response.OSType), nil
 }
 
 func (c *Client) ListenForEvents(channel chan<- []model.Container) {
