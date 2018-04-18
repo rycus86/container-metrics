@@ -48,7 +48,10 @@ func (m *GaugeMetric) extractLabels(c *model.Container) map[string]string {
 	values := map[string]string{
 		"container_name":  c.Name,
 		"container_image": c.Image,
-		"engine_host":     m.Parent.EngineStats.Host,
+	}
+
+	if m.Parent != nil && m.Parent.EngineStats != nil {
+		values["engine_host"] = m.Parent.EngineStats.Host
 	}
 
 	for name, key := range m.Parent.Labels {
