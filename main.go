@@ -115,7 +115,7 @@ func main() {
 		port     int
 		interval time.Duration
 		timeout  time.Duration
-		labels	 string
+		labels   string
 		debug    bool
 		verbose  bool
 	)

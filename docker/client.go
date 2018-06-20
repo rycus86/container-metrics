@@ -21,7 +21,7 @@ type Client struct {
 }
 
 func NewClient(timeout time.Duration, labelFilters []string) (*Client, error) {
-	cli, err := dockerClient.NewClientWithOpts(dockerClient.WithVersion(""))
+	cli, err := dockerClient.NewClientWithOpts(dockerClient.FromEnv, dockerClient.WithVersion(""))
 	if err != nil {
 		return nil, err
 	}
@@ -111,7 +111,7 @@ func (c *Client) getLabelsFor(dc dockerTypes.Container) map[string]string {
 	for name, value := range dc.Labels {
 		for _, filter := range c.labelFilters {
 			// ignore case, match from the start
-			if matched, err := regexp.MatchString("(?i)^" + filter, name); err == nil && matched {
+			if matched, err := regexp.MatchString("(?i)^"+filter, name); err == nil && matched {
 				filteredLabels[name] = value
 			}
 		}
